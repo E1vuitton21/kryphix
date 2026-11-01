@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --primary: #00d2ff;
+    --primary-foreground: #0f172a;
+    --neon-pink: #ff007f;
+    --neon-purple: #7928ca;
+    --neon-amber: #ffb800;
+    --border: #e2e8f0;
+    --ring: #00d2ff;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "rlig" 1, "calt" 1;
+    overflow-x: hidden;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Hardware-Accelerated Smooth Page Transitions */
+@keyframes pageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+/* Cyberpunk Dot Matrix Background */
+.cyber-grid {
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 28px 28px;
+}
+
+.cyber-grid-dense {
+  background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Bright Glassmorphism Cards */
+.cyber-card {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 10px 25px -5px rgba(0, 210, 255, 0.08), 0 8px 10px -6px rgba(121, 40, 202, 0.04);
+}
+
+.cyber-card-glow {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 210, 255, 0.35);
+  box-shadow: 0 0 25px rgba(0, 210, 255, 0.15), 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+}
+
+.cyber-card-pink {
+  border: 1px solid rgba(255, 0, 127, 0.3);
+  box-shadow: 0 0 20px rgba(255, 0, 127, 0.12);
+}
+
+.cyber-card-purple {
+  border: 1px solid rgba(121, 40, 202, 0.3);
+  box-shadow: 0 0 20px rgba(121, 40, 202, 0.12);
+}
+
+/* Neon Glow Texts and Badges */
+.text-glow-cyan {
+  text-shadow: 0 0 12px rgba(0, 210, 255, 0.45);
+}
+
+.text-glow-pink {
+  text-shadow: 0 0 12px rgba(255, 0, 127, 0.45);
+}
+
+/* Dynamic Screen Shield Anti-Screenshot Watermark */
+.screen-shield-watermark {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(15, 23, 42, 0.025),
+    rgba(15, 23, 42, 0.025) 100px,
+    transparent 100px,
+    transparent 200px
+  );
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+

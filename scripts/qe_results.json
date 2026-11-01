@@ -1,0 +1,484 @@
+[
+  {
+    "test_id": "TC-AUTH-01",
+    "name": "Register New User",
+    "status": "PASS",
+    "details": "User created with ID c5b2e357-2217-40ca-b008-e0595281ad89, tokens: 6",
+    "http_status": 201,
+    "response_sample": {
+      "message": "Registrasi berhasil",
+      "user": {
+        "id": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "email": "qe_tester_1793573913@kryphix.test",
+        "displayName": "Agent QE Specialist",
+        "balanceTokens": 6
+      }
+    }
+  },
+  {
+    "test_id": "TC-AUTH-02",
+    "name": "Register Duplicate User",
+    "status": "PASS",
+    "details": "Conflict properly rejected with 409",
+    "http_status": 409,
+    "response_sample": {
+      "message": "Alamat email sudah terdaftar"
+    }
+  },
+  {
+    "test_id": "TC-AUTH-03",
+    "name": "Login Valid Credentials",
+    "status": "PASS",
+    "details": "Session token cookie set successfully",
+    "http_status": 200,
+    "response_sample": {
+      "message": "Login berhasil",
+      "user": {
+        "id": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "email": "qe_tester_1793573913@kryphix.test",
+        "displayName": "Agent QE Specialist",
+        "balanceTokens": 6
+      }
+    }
+  },
+  {
+    "test_id": "TC-AUTH-04",
+    "name": "Login Wrong Password",
+    "status": "PASS",
+    "details": "Rejected with 401 Unauthorized",
+    "http_status": 401,
+    "response_sample": {
+      "message": "Email atau kata sandi tidak cocok"
+    }
+  },
+  {
+    "test_id": "TC-AUTH-05",
+    "name": "Session Verification (auth/me)",
+    "status": "PASS",
+    "details": "Authenticated as qe_tester_1793573913@kryphix.test, balance: 6",
+    "http_status": 200,
+    "response_sample": {
+      "authenticated": true,
+      "user": {
+        "id": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "email": "qe_tester_1793573913@kryphix.test",
+        "displayName": "Agent QE Specialist",
+        "vipTier": "NONE",
+        "balanceTokens": 6,
+        "createdAt": "2026-11-01T22:58:33.586Z"
+      }
+    }
+  },
+  {
+    "test_id": "TC-MSG-01",
+    "name": "Create ZK Ephemeral Secret",
+    "status": "PASS",
+    "details": "Slug generated: eXwzFUwipANyZVl2AXpR",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "slug": "eXwzFUwipANyZVl2AXpR",
+      "expiresAt": "2026-11-08T22:58:34.120Z",
+      "maxViews": 1,
+      "screenShield": true
+    }
+  },
+  {
+    "test_id": "TC-MSG-02",
+    "name": "Read ZK Secret (First View)",
+    "status": "PASS",
+    "details": "Ciphertext received, burnedAfterThis=True, Cert=SHRED-2026-5X3HOM1J",
+    "http_status": 200,
+    "response_sample": {
+      "success": true,
+      "ciphertextBase64": "U2VjcmV0Q2lwaGVydGV4dERhdGExMjM0NTY=",
+      "ivBase64": "MTIzNDU2Nzg5MDEy",
+      "screenShield": true,
+      "viewsRemaining": 0,
+      "burnedAfterThis": true,
+      "certificateCode": "SHRED-2026-5X3HOM1J",
+      "isDuress": false
+    }
+  },
+  {
+    "test_id": "TC-MSG-03",
+    "name": "Verify Auto-Burn (Second View)",
+    "status": "PASS",
+    "details": "HTTP 410 Gone with DoD 5220.22-M zeroization confirmation",
+    "http_status": 410,
+    "response_sample": {
+      "burned": true,
+      "status": "BURNED",
+      "message": "Pesan ini telah hancur lebur tanpa jejak (DoD 5220.22-M Zeroization).",
+      "burnedAt": "2026-11-01T22:58:35.408Z",
+      "certificateCode": "SHRED-2026-5X3HOM1J"
+    }
+  },
+  {
+    "test_id": "TC-MSG-04",
+    "name": "DoD Shred Certificate Verification",
+    "status": "PASS",
+    "details": "Ed25519 signature verified for cert SHRED-2026-5X3HOM1J",
+    "http_status": 200,
+    "response_sample": {
+      "valid": true,
+      "signatureVerified": true,
+      "certificateCode": "SHRED-2026-5X3HOM1J",
+      "resourceType": "MESSAGE",
+      "shredMethod": "DOD_5220_22_M_RAM_ZERO",
+      "shreddedAt": "2026-11-01T22:58:35.408Z",
+      "fingerprintSha256": "ffe53aa7a9cbba40b559474db9cd4f0df962b06e3fe67d55b5769ac0854df3b3",
+      "caSignatureEd25519": "vjifIgvHplBABijreawiziezs0IR9crRk9wqIBNsFjrZY/DBlDZcFCniAHJr7iSFj1jA9thjzeTbnvRLAcuQBQ==",
+      "verificationCount": 1
+    }
+  },
+  {
+    "test_id": "TC-MSG-05",
+    "name": "Passphrase Gate Protection",
+    "status": "PASS",
+    "details": "Passphrase prompt on missing header, 401 on wrong passphrase, 200 on valid passphrase",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-MSG-07",
+    "name": "Duress Decoy Content Return",
+    "status": "PASS",
+    "details": "Duress passphrase returned decoy content with isDuress=true",
+    "http_status": 200,
+    "response_sample": {
+      "success": true,
+      "ciphertextBase64": "RGVjb3lDb250ZW50Rm9yRHVyZXNzMTIzNA==",
+      "ivBase64": "MTIzNDU2Nzg5MDEy",
+      "screenShield": false,
+      "viewsRemaining": 99,
+      "burnedAfterThis": false,
+      "certificateCode": null,
+      "isDuress": true
+    }
+  },
+  {
+    "test_id": "TC-PIPE-01",
+    "name": "Upload Ephemeral Pipe",
+    "status": "PASS",
+    "details": "Pipe created: uCL1I_Sic8C0, key extracted",
+    "http_status": 201,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-PIPE-02",
+    "name": "Download & Decrypt Pipe",
+    "status": "PASS",
+    "details": "Plaintext payload decrypted accurately",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-PIPE-03",
+    "name": "Pipe Auto-Burn Verification",
+    "status": "PASS",
+    "details": "HTTP 410 Gone - 0 bytes retained confirmed",
+    "http_status": 410,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-CHAT-01",
+    "name": "Create Ephemeral Chat Room",
+    "status": "PASS",
+    "details": "Room created: oZnk_RFI-jL2n2UA",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "roomId": "oZnk_RFI-jL2n2UA",
+      "secretRoomKey": "W1XLjvsC40Y11cr-uOvkmDxrNmtkgUfb",
+      "expiresAt": "2026-11-01T23:13:35.818Z"
+    }
+  },
+  {
+    "test_id": "TC-CHAT-02",
+    "name": "Post Message in Chat Room",
+    "status": "PASS",
+    "details": "Message pushed into Redis RAM ring buffer",
+    "http_status": 200,
+    "response_sample": {
+      "success": true,
+      "message": {
+        "id": "msg-1793573915869-hzmsg",
+        "sender": "AgentQE",
+        "content": "ENCRYPTED_P2P_MESSAGE_TEXT_BUFFER_123",
+        "timestamp": 1793573915870
+      }
+    }
+  },
+  {
+    "test_id": "TC-CHAT-03",
+    "name": "Poll Messages from Chat Room",
+    "status": "PASS",
+    "details": "Retrieved 1 message(s) from RAM",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-DROP-01",
+    "name": "Create Secret Drop Box",
+    "status": "PASS",
+    "details": "Drop box slug: N_QDae7asl38",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "box": {
+        "id": "9d97a445-0ae9-47e3-adf5-78825f82ac49",
+        "boxSlug": "N_QDae7asl38",
+        "title": "Kryphix Security Whistleblower Box",
+        "description": "Drop encrypted leak files anonymously",
+        "publicEncryptionKey": "ED25519_KRX_PUBLIC_DROP_ESCROW",
+        "ownerUserId": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "isActive": true,
+        "expiresAt": "2026-12-01T22:58:35.946Z",
+        "createdAt": "2026-11-01T22:58:35.947Z"
+      }
+    }
+  },
+  {
+    "test_id": "TC-DROP-02",
+    "name": "Submit Whistleblower Anonymous Tip",
+    "status": "PASS",
+    "details": "Tip received and stored encrypted",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "receiptToken": "E4w6TCp7Is0mzmkNorHH8bi_",
+      "message": "Laporan rahasia berhasil dikirimkan ke kotak aduan anonim."
+    }
+  },
+  {
+    "test_id": "TC-DROP-03",
+    "name": "Owner Retrieve Drop Messages",
+    "status": "PASS",
+    "details": "Retrieved 1 box(es)",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-POLL-01",
+    "name": "Create Blind Homomorphic Poll",
+    "status": "PASS",
+    "details": "Poll slug: 6STIekXiR0Ai",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "poll": {
+        "id": "4a487fa8-952d-4b9a-8225-e55ec5f0f8b5",
+        "pollSlug": "6STIekXiR0Ai",
+        "title": "Kryphix Protocol Consensus Poll",
+        "publicPaillierKey": "PAILLIER_HOMOMORPHIC_PUB_2048",
+        "optionsJson": [
+          "Opsi A: Zero-Knowledge SSS",
+          "Opsi B: DoD 5220-M Shredding",
+          "Opsi C: Full Steganography"
+        ],
+        "totalEligibleVoters": 100,
+        "isClosed": false,
+        "closedAt": null,
+        "zkpTallyHash": null,
+        "ownerUserId": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "createdAt": "2026-11-01T22:58:36.039Z"
+      }
+    }
+  },
+  {
+    "test_id": "TC-POLL-02",
+    "name": "List Blind Polls",
+    "status": "PASS",
+    "details": "Listed 5 poll(s)",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-NOTARY-01",
+    "name": "Digital Notary Timestamp",
+    "status": "PASS",
+    "details": "Verification Code: NOTARY-2026-URC15BQZ",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "verificationCode": "NOTARY-2026-URC15BQZ",
+      "documentHashSha256": "0271a30a7416fcf200fbbf5b33d7227ab899190b907ca12679bb0f04c539fd3f",
+      "certifiedAt": "2026-11-01T22:58:36.114Z",
+      "signature": "wCN4LIdWlabmKHs0XauOrNdF6+swdi9Zzmcpx9VsodcbtNGfB6IzxufpKKghpKIIpGb86TkFvnAmkhACIvzKBw=="
+    }
+  },
+  {
+    "test_id": "TC-DMS-01",
+    "name": "Create Dead Man Switch",
+    "status": "PASS",
+    "details": "DMS scheduled successfully",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "dms": {
+        "id": "29f37984-60d6-4165-9af5-148360a98c6a",
+        "ownerUserId": "c5b2e357-2217-40ca-b008-e0595281ad89",
+        "title": "Kryphix Emergency Master Key Dispatch",
+        "ciphertextPayload": {
+          "0": 69,
+          "1": 77,
+          "2": 69,
+          "3": 82,
+          "4": 71,
+          "5": 69,
+          "6": 78,
+          "7": 67,
+          "8": 89,
+          "9": 95,
+          "10": 68,
+          "11": 69,
+          "12": 67,
+          "13": 82,
+          "14": 89,
+          "15": 80,
+          "16": 84,
+          "17": 73,
+          "18": 79,
+          "19": 78,
+          "20": 95,
+          "21": 73,
+          "22": 78,
+          "23": 83,
+          "24": 84,
+          "25": 82,
+          "26": 85,
+          "27": 67,
+          "28": 84,
+          "29": 73,
+          "30": 79,
+          "31": 78,
+          "32": 83,
+          "33": 95,
+          "34": 70,
+          "35": 79,
+          "36": 82,
+          "37": 95,
+          "38": 78,
+          "39": 69,
+          "40": 88,
+          "41": 84,
+          "42": 95,
+          "43": 79,
+          "44": 70,
+          "45": 95,
+          "46": 75,
+          "47": 73,
+          "48": 78
+        },
+        "checkInFrequencyDays": 30,
+        "gracePeriodDays": 14,
+        "lastCheckInAt": "2026-11-01T22:58:36.170Z",
+        "nextCheckInDeadline": "2026-12-01T22:58:36.170Z",
+        "escalationStage": 0,
+        "recipientEmail": "kin@family.test",
+        "recipientTelegramId": null,
+        "status": "ACTIVE",
+        "createdAt": "2026-11-01T22:58:36.171Z"
+      }
+    }
+  },
+  {
+    "test_id": "TC-DMS-02",
+    "name": "List Dead Man Switches",
+    "status": "PASS",
+    "details": "Retrieved 1 active switch(es)",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-PAY-01",
+    "name": "Create Midtrans Payment Order",
+    "status": "PASS",
+    "details": "OrderId: KRX-1793573916244-PIIUO7, SnapToken generated",
+    "http_status": 201,
+    "response_sample": {
+      "success": true,
+      "orderId": "KRX-1793573916244-PIIUO7",
+      "snapToken": "snap-sim-KRX-1793573916244-PIIUO7-f4427682c513",
+      "redirectUrl": "https://app.sandbox.midtrans.com/snap/v2/vtweb/snap-sim-KRX-1793573916244-PIIUO7-f4427682c513"
+    }
+  },
+  {
+    "test_id": "TC-PAY-02",
+    "name": "Midtrans Webhook Settlement",
+    "status": "PASS",
+    "details": "Webhook accepted, user balance credited to 106 tokens",
+    "http_status": 200,
+    "response_sample": {
+      "status": "OK",
+      "orderId": "KRX-1793573916244-PIIUO7",
+      "result": "SETTLED"
+    }
+  },
+  {
+    "test_id": "TC-ADM-01",
+    "name": "Admin Login (Valid)",
+    "status": "PASS",
+    "details": "Admin authenticated: kryphix_admin",
+    "http_status": 200,
+    "response_sample": {
+      "success": true,
+      "message": "Otorisasi operator berhasil",
+      "admin": {
+        "id": "a730caf2-8549-4ab4-8e6a-de1296b5a1a9",
+        "username": "kryphix_admin",
+        "displayName": "Nexus Master Operator",
+        "role": "SUPERADMIN"
+      }
+    }
+  },
+  {
+    "test_id": "TC-ADM-02",
+    "name": "Admin Login (Invalid)",
+    "status": "PASS",
+    "details": "Rejected with 401 Unauthorized",
+    "http_status": 401,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-ADM-03",
+    "name": "Nexus Admin Stats",
+    "status": "PASS",
+    "details": "Total Msgs: 18, Active Chats: 6, Users: 9",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-ADM-04",
+    "name": "Nexus Admin Messages List",
+    "status": "PASS",
+    "details": "Retrieved 18 message records (metadata only)",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-ADM-05",
+    "name": "Nexus Admin Users List",
+    "status": "PASS",
+    "details": "Retrieved 9 user accounts",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-ADM-06",
+    "name": "Nexus Admin Visitors Telemetry",
+    "status": "PASS",
+    "details": "Retrieved 0 visitor footprints",
+    "http_status": 200,
+    "response_sample": null
+  },
+  {
+    "test_id": "TC-ADM-07",
+    "name": "Nexus Admin Master Settings",
+    "status": "PASS",
+    "details": "Retrieved 5 configuration parameters",
+    "http_status": 200,
+    "response_sample": null
+  }
+]

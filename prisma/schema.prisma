@@ -1,0 +1,734 @@
+// Prisma Schema for Kryphix (The Ultimate Ephemeral Secrecy Suite)
+// 100% Home Server Docker Containerized (PostgreSQL 16+)
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// 1. MODUL SUPERADMIN & OPERASIONAL TERISOLASI
+// ============================================================================
+
+model AdminUser {
+  id                   String         @id @default(uuid()) @db.Uuid
+  username             String         @unique @db.VarChar(50)
+  email                String         @unique @db.VarChar(255)
+  passwordHash         String         @map("password_hash") @db.VarChar(255)
+  displayName          String         @map("display_name") @db.VarChar(100)
+  role                 String         @default("SUPERADMIN") @db.VarChar(30)
+  totpSecretEncrypted  String         @map("totp_secret_encrypted") @db.Text
+  totpEnabled          Boolean        @default(true) @map("totp_enabled")
+  isActive             Boolean        @default(true) @map("is_active")
+  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  lastLoginAt          DateTime?      @map("last_login_at") @db.Timestamptz
+  lastLoginIp          String?        @map("last_login_ip") @db.VarChar(45)
+
+  sessions             AdminSession[]
+  auditLogs            AdminAuditLog[]
+
+  @@map("admin_users")
+}
+
+model AdminSession {
+  id           String    @id @db.VarChar(128)
+  adminUserId  String    @map("admin_user_id") @db.Uuid
+  ipAddress    String    @map("ip_address") @db.VarChar(45)
+  userAgent    String    @map("user_agent") @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastActiveAt DateTime  @default(now()) @map("last_active_at") @db.Timestamptz
+  expiresAt    DateTime  @map("expires_at") @db.Timestamptz
+
+  adminUser    AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@map("admin_sessions")
+}
+
+model AdminAuditLog {
+  id            BigInt    @id @default(autoincrement())
+  adminUserId   String    @map("admin_user_id") @db.Uuid
+  action        String    @db.VarChar(100)
+  targetType    String    @map("target_type") @db.VarChar(50)
+  targetId      String    @map("target_id") @db.VarChar(128)
+  reason        String    @db.Text
+  previousState Json?     @map("previous_state")
+  newState      Json?     @map("new_state")
+  ipAddress     String    @map("ip_address") @db.VarChar(45)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  adminUser     AdminUser @relation(fields: [adminUserId], references: [id])
+
+  @@map("admin_audit_logs")
+}
+
+// ============================================================================
+// 2. MODUL PELACAKAN PENGUNJUNG & COOKIES MASIF
+// ============================================================================
+
+model VisitorTrack {
+  visitorId          String    @id @map("visitor_id") @db.Uuid
+  firstSessionId     String    @map("first_session_id") @db.VarChar(128)
+  fingerprintHash    String    @map("fingerprint_hash") @db.VarChar(64)
+  firstSeenAt        DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz
+  lastSeenAt         DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz
+  firstIp            String    @map("first_ip") @db.VarChar(45)
+  lastIp             String    @map("last_ip") @db.VarChar(45)
+  firstCountry       String?   @map("first_country") @db.VarChar(10)
+  firstCity          String?   @map("first_city") @db.VarChar(100)
+  firstIsp           String?   @map("first_isp") @db.VarChar(150)
+  firstUserAgent     String    @map("first_user_agent") @db.Text
+  deviceCategory     String    @default("DESKTOP") @map("device_category") @db.VarChar(20)
+  operatingSystem    String?   @map("operating_system") @db.VarChar(50)
+  browserFamily      String?   @map("browser_family") @db.VarChar(50)
+  hardwareCanvasHash String?   @map("hardware_canvas_hash") @db.VarChar(64)
+  hardwareWebglHash  String?   @map("hardware_webgl_hash") @db.VarChar(64)
+  hardwareAudioHash  String?   @map("hardware_audio_hash") @db.VarChar(64)
+  linkedUserId       String?   @map("linked_user_id") @db.Uuid
+
+  events             VisitorEvent[]
+  linkedUser         User?     @relation(fields: [linkedUserId], references: [id], onDelete: SetNull)
+  messagesSent       Message[] @relation("SenderVisitor")
+  shredCertificates  ShredCertificate[]
+  canaryRecipients   CanaryRecipient[]
+  sanitizerTelemetry SanitizerTelemetry[]
+  chatParticipants   ChatRoomParticipant[]
+  messageAccessSessions MessageAccessSession[]
+  chatRoomsHosted    ChatRoom[] @relation("HostVisitor")
+
+  @@index([linkedUserId], name: "idx_visitor_tracks_user")
+  @@index([fingerprintHash], name: "idx_visitor_tracks_fingerprint")
+  @@map("visitor_tracks")
+}
+
+model VisitorEvent {
+  id          BigInt       @id @default(autoincrement())
+  visitorId   String       @map("visitor_id") @db.Uuid
+  sessionId   String       @map("session_id") @db.VarChar(128)
+  eventName   String       @map("event_name") @db.VarChar(100)
+  pageUrl     String       @map("page_url") @db.Text
+  referrerUrl String?      @map("referrer_url") @db.Text
+  ipAddress   String       @map("ip_address") @db.VarChar(45)
+  metadata    Json?
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  visitor     VisitorTrack @relation(fields: [visitorId], references: [visitorId], onDelete: Cascade)
+
+  @@index([visitorId, createdAt(sort: Desc)], name: "idx_visitor_events_visitor_time")
+  @@map("visitor_events")
+}
+
+// ============================================================================
+// 3. MODUL PENGGUNA, DOMPET & MONETISASI (TOP-UP & VIP)
+// ============================================================================
+
+model User {
+  id                      String    @id @default(uuid()) @db.Uuid
+  email                   String    @unique @db.VarChar(255)
+  passwordHash            String    @map("password_hash") @db.VarChar(255)
+  displayName             String?   @map("display_name") @db.VarChar(100)
+  isEmailVerified         Boolean   @default(false) @map("is_email_verified")
+  emailVerificationToken  String?   @map("email_verification_token") @db.VarChar(128)
+  emailVerificationSentAt DateTime? @map("email_verification_sent_at") @db.Timestamptz
+  status                  String    @default("ACTIVE") @db.VarChar(30)
+  vipTier                 String    @default("NONE") @map("vip_tier") @db.VarChar(30)
+  registeredIp            String    @map("registered_ip") @db.VarChar(45)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  wallet                  Wallet?
+  tokenLedgers            TokenLedger[]
+  vipSubscriptions        VipSubscription[]
+  paymentOrders           PaymentOrder[]
+  messages                Message[]
+  stegoItems              StegoItem[]
+  vaultItems              VaultItem[]
+  blindNotaries           BlindNotaryCertificate[]
+  secretDropBoxes         SecretDropBox[]
+  deadManSwitches         DeadManSwitch[]
+  canaryTraps             CanaryTrap[]
+  timelockVaults          TimelockVault[]
+  voiceMemos              VoiceMemo[]
+  blindPolls              BlindPoll[]
+  dynamicQrBadges         DynamicQrBadge[]
+  ephemeralVideos         EphemeralVideo[]
+  chatRoomsHosted         ChatRoom[] @relation("HostUser")
+  linkedVisitors          VisitorTrack[]
+
+  @@map("users")
+}
+
+model Wallet {
+  userId                  String    @id @map("user_id") @db.Uuid
+  balanceTokens           Int       @default(0) @map("balance_tokens")
+  lifetimeTokensPurchased Int       @default(0) @map("lifetime_tokens_purchased")
+  lifetimeTokensSpent     Int       @default(0) @map("lifetime_tokens_spent")
+  updatedAt               DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("wallets")
+}
+
+model TokenLedger {
+  id             BigInt   @id @default(autoincrement())
+  userId         String   @map("user_id") @db.Uuid
+  amountTokens   Int      @map("amount_tokens")
+  balanceAfter   Int      @map("balance_after")
+  entryType      String   @map("entry_type") @db.VarChar(50)
+  referenceType  String   @map("reference_type") @db.VarChar(50)
+  referenceId    String   @map("reference_id") @db.VarChar(128)
+  description    String   @db.Text
+  idempotencyKey String   @unique @map("idempotency_key") @db.VarChar(128)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)], name: "idx_token_ledgers_user")
+  @@map("token_ledgers")
+}
+
+model VipSubscription {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tierName      String    @map("tier_name") @db.VarChar(50)
+  priceRupiah   Int       @map("price_rupiah")
+  monthlyTokens Int       @map("monthly_tokens")
+  status        String    @default("ACTIVE") @db.VarChar(30)
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  nextBillingAt DateTime  @map("next_billing_at") @db.Timestamptz
+  cancelledAt   DateTime? @map("cancelled_at") @db.Timestamptz
+  paymentMethod String    @map("payment_method") @db.VarChar(50)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  paymentOrders PaymentOrder[]
+
+  @@index([userId, status], name: "idx_vip_subscriptions_user")
+  @@map("vip_subscriptions")
+}
+
+// ============================================================================
+// 4. MODUL PESAN RAHASIA & PROTEKSI LAYAR
+// ============================================================================
+
+model Message {
+  id                   String    @id @default(uuid()) @db.Uuid
+  capabilityHash       String    @unique @map("capability_hash") @db.VarChar(64)
+  title                String?   @db.VarChar(255)
+  ciphertextBlob       Bytes     @map("ciphertext_blob")
+  ivBytes              Bytes     @map("iv_bytes")
+  authTagBytes         Bytes     @map("auth_tag_bytes")
+  adminWrappedDek      Bytes     @map("admin_wrapped_dek")
+  hasAttachment        Boolean   @default(false) @map("has_attachment")
+  attachmentName       String?   @map("attachment_name") @db.VarChar(255)
+  attachmentSizeBytes  Int?      @map("attachment_size_bytes")
+  attachmentMinioKey   String?   @map("attachment_minio_key") @db.VarChar(255)
+  maxViews             Int       @default(1) @map("max_views")
+  viewsRemaining       Int       @default(1) @map("views_remaining")
+  hasPassphrase        Boolean   @default(false) @map("has_passphrase")
+  passphraseKdfSalt    Bytes?    @map("passphrase_kdf_salt")
+  gateProofHash        String?   @map("gate_proof_hash") @db.VarChar(64)
+  duressProofHash      String?   @map("duress_proof_hash") @db.VarChar(64)
+  duressCiphertextBlob Bytes?    @map("duress_ciphertext_blob")
+  screenShieldEnabled  Boolean   @default(false) @map("screen_shield_enabled")
+  createdByUserId      String?   @map("created_by_user_id") @db.Uuid
+  senderVisitorId      String?   @map("sender_visitor_id") @db.Uuid
+  status               String    @default("ACTIVE") @db.VarChar(30)
+  expiresAt            DateTime  @map("expires_at") @db.Timestamptz
+  burnedAt             DateTime? @map("burned_at") @db.Timestamptz
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  createdByUser        User?     @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  senderVisitor        VisitorTrack? @relation("SenderVisitor", fields: [senderVisitorId], references: [visitorId], onDelete: SetNull)
+  geofence             GeofencedMessage?
+  decoyLink            DecoyMaskedLink?
+  accessLogs           MessageAccessLog[]
+  accessSessions       MessageAccessSession[]
+
+  @@index([status, expiresAt], name: "idx_messages_sweep")
+  @@map("messages")
+}
+
+model GeofencedMessage {
+  messageId        String   @id @map("message_id") @db.Uuid
+  targetLatitude   Decimal  @map("target_latitude") @db.Decimal(10, 7)
+  targetLongitude  Decimal  @map("target_longitude") @db.Decimal(10, 7)
+  radiusMeters     Int      @map("radius_meters")
+  allowedCountries String[] @map("allowed_countries") @db.VarChar(10)
+
+  message          Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("geofenced_messages")
+}
+
+model DecoyMaskedLink {
+  id         String   @id @default(uuid()) @db.Uuid
+  messageId  String   @unique @map("message_id") @db.Uuid
+  maskedSlug String   @unique @map("masked_slug") @db.VarChar(64)
+  decoyTheme String   @default("RECIPE_BLOG") @map("decoy_theme") @db.VarChar(50)
+  decoyTitle String   @map("decoy_title") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  message    Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("decoy_masked_links")
+}
+
+model StegoItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  stegoToken       String   @unique @map("stego_token") @db.VarChar(64)
+  carrierType      String   @default("IMAGE_PNG") @map("carrier_type") @db.VarChar(20)
+  carrierMinioKey  String   @map("carrier_minio_key") @db.VarChar(255)
+  payloadSizeBytes Int      @map("payload_size_bytes")
+  ownerUserId      String?  @map("owner_user_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser        User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([ownerUserId], name: "idx_stego_items_user")
+  @@map("stego_items")
+}
+
+model MessageAccessLog {
+  id            BigInt   @id @default(autoincrement())
+  messageId     String   @map("message_id") @db.Uuid
+  accessType    String   @map("access_type") @db.VarChar(50)
+  ipAddress     String   @map("ip_address") @db.VarChar(45)
+  userAgent     String   @map("user_agent") @db.Text
+  countryIso    String?  @map("country_iso") @db.VarChar(10)
+  cityName      String?  @map("city_name") @db.VarChar(100)
+  isTorOrProxy  Boolean  @default(false) @map("is_tor_or_proxy")
+  wasDuressUsed Boolean  @default(false) @map("was_duress_used")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  message       Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@map("message_access_logs")
+}
+
+model MessageAccessSession {
+  id               String       @id @default(uuid()) @db.Uuid
+  messageId        String       @map("message_id") @db.Uuid
+  visitorId        String?      @map("visitor_id") @db.Uuid
+  sessionTokenHash String       @unique @map("session_token_hash") @db.VarChar(64)
+  expiresAt        DateTime     @map("expires_at") @db.Timestamptz
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  message          Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  visitor          VisitorTrack? @relation(fields: [visitorId], references: [visitorId], onDelete: SetNull)
+
+  @@map("message_access_sessions")
+}
+
+// ============================================================================
+// 5. MODUL OBROLAN GHOST CHAT & MEDIA NIR-JEJAK
+// ============================================================================
+
+model ChatRoom {
+  id                 String    @id @default(uuid()) @db.Uuid
+  roomCapabilityHash String    @unique @map("room_capability_hash") @db.VarChar(64)
+  durationMinutes    Int       @map("duration_minutes")
+  maxParticipants    Int       @default(2) @map("max_participants")
+  status             String    @default("ACTIVE") @db.VarChar(30)
+  hostUserId         String?   @map("host_user_id") @db.Uuid
+  hostVisitorId      String?   @map("host_visitor_id") @db.Uuid
+  expiresAt          DateTime  @map("expires_at") @db.Timestamptz
+  closedAt           DateTime? @map("closed_at") @db.Timestamptz
+  closeReason        String?   @map("close_reason") @db.VarChar(50)
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  hostUser           User?     @relation("HostUser", fields: [hostUserId], references: [id], onDelete: SetNull)
+  hostVisitor        VisitorTrack? @relation("HostVisitor", fields: [hostVisitorId], references: [visitorId], onDelete: SetNull)
+  participants       ChatRoomParticipant[]
+
+  @@map("chat_rooms")
+}
+
+model ChatRoomParticipant {
+  id               String       @id @default(uuid()) @db.Uuid
+  chatRoomId       String       @map("chat_room_id") @db.Uuid
+  participantToken String       @map("participant_token") @db.VarChar(64)
+  visitorId        String?      @map("visitor_id") @db.Uuid
+  displayAlias     String       @map("display_alias") @db.VarChar(50)
+  joinedAt         DateTime     @default(now()) @map("joined_at") @db.Timestamptz
+  leftAt           DateTime?    @map("left_at") @db.Timestamptz
+  ipAddress        String       @map("ip_address") @db.VarChar(45)
+
+  chatRoom         ChatRoom     @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  visitor          VisitorTrack? @relation(fields: [visitorId], references: [visitorId], onDelete: SetNull)
+
+  @@map("chat_room_participants")
+}
+
+model DynamicQrBadge {
+  id                     String   @id @default(uuid()) @db.Uuid
+  badgeSlug              String   @unique @map("badge_slug") @db.VarChar(64)
+  targetCapabilityHash   String   @map("target_capability_hash") @db.VarChar(64)
+  refreshIntervalSeconds Int      @default(15) @map("refresh_interval_seconds")
+  isSingleScanBurn       Boolean  @default(false) @map("is_single_scan_burn")
+  isBurned               Boolean  @default(false) @map("is_burned")
+  ownerUserId            String?  @map("owner_user_id") @db.Uuid
+  createdAt              DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser              User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@map("dynamic_qr_badges")
+}
+
+model EphemeralVideo {
+  id              String   @id @default(uuid()) @db.Uuid
+  videoSlug       String   @unique @map("video_slug") @db.VarChar(64)
+  minioBlobKey    String   @map("minio_blob_key") @db.VarChar(255)
+  durationSeconds Int      @map("duration_seconds")
+  isWatched       Boolean  @default(false) @map("is_watched")
+  ownerUserId     String?  @map("owner_user_id") @db.Uuid
+  expiresAt       DateTime @map("expires_at") @db.Timestamptz
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser       User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@map("ephemeral_videos")
+}
+
+// ============================================================================
+// 6. MODUL BRANKAS, SHAMIR & NOTARIS
+// ============================================================================
+
+model VaultItem {
+  id           String    @id @default(uuid()) @db.Uuid
+  title        String    @db.VarChar(255)
+  minioBlobKey String    @map("minio_blob_key") @db.VarChar(255)
+  fileSizeBytes Int      @map("file_size_bytes")
+  isTimeLocked Boolean   @default(false) @map("is_time_locked")
+  unlockAt     DateTime? @map("unlock_at") @db.Timestamptz
+  ownerUserId  String    @map("owner_user_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser    User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  shamirShares ShamirSecretShare[]
+
+  @@index([ownerUserId], name: "idx_vault_items_user")
+  @@map("vault_items")
+}
+
+model ShamirSecretShare {
+  id                   String    @id @default(uuid()) @db.Uuid
+  secretVaultId        String    @map("secret_vault_id") @db.Uuid
+  thresholdK           Int       @map("threshold_k")
+  totalSharesN         Int       @map("total_shares_n")
+  submittedSharesCount Int       @default(0) @map("submitted_shares_count")
+  status               String    @default("LOCKED") @db.VarChar(30)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  vaultItem            VaultItem @relation(fields: [secretVaultId], references: [id], onDelete: Cascade)
+
+  @@index([status], name: "idx_shamir_shares_status")
+  @@map("shamir_secret_shares")
+}
+
+model BlindNotaryCertificate {
+  id                 String   @id @default(uuid()) @db.Uuid
+  documentHashSha256 String   @map("document_hash_sha256") @db.VarChar(64)
+  verificationCode   String   @unique @map("verification_code") @db.VarChar(64)
+  rfc3161TokenBlob   Bytes    @map("rfc3161_token_blob")
+  certifiedAt        DateTime @default(now()) @map("certified_at") @db.Timestamptz
+  ownerUserId        String?  @map("owner_user_id") @db.Uuid
+
+  ownerUser          User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@map("blind_notary_certificates")
+}
+
+// ============================================================================
+// 7. MODUL KOTAK ADUAN DUA ARAH & WASIAT DARURAT
+// ============================================================================
+
+model SecretDropBox {
+  id                 String        @id @default(uuid()) @db.Uuid
+  boxSlug            String        @unique @map("box_slug") @db.VarChar(64)
+  title              String        @db.VarChar(255)
+  description        String?       @db.Text
+  publicEncryptionKey String       @map("public_encryption_key") @db.Text
+  ownerUserId        String        @map("owner_user_id") @db.Uuid
+  isActive           Boolean       @default(true) @map("is_active")
+  expiresAt          DateTime      @map("expires_at") @db.Timestamptz
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser          User          @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  messages           DropMessage[]
+
+  @@index([boxSlug], name: "idx_secret_drop_slug")
+  @@map("secret_drop_boxes")
+}
+
+model DropMessage {
+  id                   String        @id @default(uuid()) @db.Uuid
+  boxId                String        @map("box_id") @db.Uuid
+  receiptTokenHash     String        @unique @map("receipt_token_hash") @db.VarChar(64)
+  ciphertextBlob       Bytes         @map("ciphertext_blob")
+  senderReplyPublicKey String?       @map("sender_reply_public_key") @db.Text
+  status               String        @default("NEW") @db.VarChar(30)
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  box                  SecretDropBox @relation(fields: [boxId], references: [id], onDelete: Cascade)
+
+  @@index([boxId, createdAt(sort: Desc)], name: "idx_drop_messages_box")
+  @@map("drop_messages")
+}
+
+model DeadManSwitch {
+  id                   String    @id @default(uuid()) @db.Uuid
+  ownerUserId          String    @map("owner_user_id") @db.Uuid
+  title                String    @db.VarChar(255)
+  ciphertextPayload    Bytes     @map("ciphertext_payload")
+  checkInFrequencyDays Int       @default(30) @map("check_in_frequency_days")
+  gracePeriodDays      Int       @default(14) @map("grace_period_days")
+  lastCheckInAt        DateTime  @default(now()) @map("last_check_in_at") @db.Timestamptz
+  nextCheckInDeadline  DateTime  @map("next_check_in_deadline") @db.Timestamptz
+  escalationStage      Int       @default(0) @map("escalation_stage")
+  recipientEmail       String    @map("recipient_email") @db.VarChar(255)
+  recipientTelegramId  String?   @map("recipient_telegram_id") @db.VarChar(64)
+  status               String    @default("ACTIVE") @db.VarChar(30)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser            User      @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextCheckInDeadline], name: "idx_dms_deadline")
+  @@map("dead_man_switches")
+}
+
+// ============================================================================
+// 8. MODUL PEMBAYARAN MIDTRANS, KONFIGURASI CMS & PAKET TOKEN
+// ============================================================================
+
+model PaymentOrder {
+  id                    String           @id @default(uuid()) @db.Uuid
+  orderId               String           @unique @map("order_id") @db.VarChar(100)
+  userId                String           @map("user_id") @db.Uuid
+  tokenPackageId        Int?             @map("token_package_id")
+  subscriptionId        String?          @map("subscription_id") @db.Uuid
+  amountRupiah          Int              @map("amount_rupiah")
+  tokensToCredit        Int              @map("tokens_to_credit")
+  status                String           @default("PENDING") @db.VarChar(50)
+  midtransTransactionId String?          @map("midtrans_transaction_id") @db.VarChar(100)
+  paymentType           String?          @map("payment_type") @db.VarChar(50)
+  settlementTime        DateTime?        @map("settlement_time") @db.Timestamptz
+  createdAt             DateTime         @default(now()) @map("created_at") @db.Timestamptz
+
+  user                  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription          VipSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@map("payment_orders")
+}
+
+model SystemConfig {
+  configKey   String   @id @map("config_key") @db.VarChar(100)
+  configValue Json     @map("config_value")
+  description String?  @db.Text
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("system_configs")
+}
+
+model LandingCmsConfig {
+  sectionKey  String   @id @map("section_key") @db.VarChar(50)
+  contentData Json     @map("content_data")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("landing_cms_configs")
+}
+
+model TokenPackage {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(50)
+  tokenAmount    Int      @map("token_amount")
+  bonusTokens    Int      @default(0) @map("bonus_tokens")
+  priceRupiah    Int      @map("price_rupiah")
+  isPopularBadge Boolean  @default(false) @map("is_popular_badge")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("token_packages")
+}
+
+// ============================================================================
+// 9. MODUL ALAT KRIPTOGRAFIS INVESTIGASI, TERMINAL & AUDIT (v3.0)
+// ============================================================================
+
+model ShredCertificate {
+  id                 String       @id @default(uuid()) @db.Uuid
+  certificateCode    String       @unique @map("certificate_code") @db.VarChar(64)
+  resourceType       String       @map("resource_type") @db.VarChar(50)
+  resourceId         String       @map("resource_id") @db.Uuid
+  fingerprintSha256  String       @map("fingerprint_sha256") @db.VarChar(64)
+  nonce              String       @db.VarChar(64)
+  shredMethod        String       @default("DOD_5220_22_M_RAM_ZERO") @map("shred_method") @db.VarChar(50)
+  shreddedAt         DateTime     @default(now()) @map("shredded_at") @db.Timestamptz
+  caSignatureEd25519 String       @map("ca_signature_ed25519") @db.Text
+  issuedToVisitorId  String?      @map("issued_to_visitor_id") @db.Uuid
+  verificationCount  Int          @default(0) @map("verification_count")
+  lastVerifiedAt     DateTime?    @map("last_verified_at") @db.Timestamptz
+  createdAt          DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  issuedToVisitor    VisitorTrack? @relation(fields: [issuedToVisitorId], references: [visitorId], onDelete: SetNull)
+
+  @@map("shred_certificates")
+}
+
+model CanaryTrap {
+  id            String            @id @default(uuid()) @db.Uuid
+  documentTitle String            @map("document_title") @db.VarChar(255)
+  baseHashSha256 String           @map("base_hash_sha256") @db.VarChar(64)
+  ownerUserId   String            @map("owner_user_id") @db.Uuid
+  recipientCount Int              @map("recipient_count")
+  status        String            @default("ACTIVE") @db.VarChar(30)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser     User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  recipients    CanaryRecipient[]
+  leakLogs      CanaryLeakLog[]
+
+  @@index([ownerUserId], name: "idx_canary_traps_user")
+  @@map("canary_traps")
+}
+
+model CanaryRecipient {
+  id               String       @id @default(uuid()) @db.Uuid
+  trapId           String       @map("trap_id") @db.Uuid
+  recipientLabel   String       @map("recipient_label") @db.VarChar(128)
+  binarySignature  String       @map("binary_signature") @db.VarChar(64)
+  zeroWidthPayload String       @map("zero_width_payload") @db.Text
+  viewToken        String       @unique @map("view_token") @db.VarChar(64)
+  firstAccessedAt  DateTime?    @map("first_accessed_at") @db.Timestamptz
+  visitorId        String?      @map("visitor_id") @db.Uuid
+  accessIp         String?      @map("access_ip") @db.VarChar(45)
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz
+
+  trap             CanaryTrap   @relation(fields: [trapId], references: [id], onDelete: Cascade)
+  visitor          VisitorTrack? @relation(fields: [visitorId], references: [visitorId], onDelete: SetNull)
+  leakLogs         CanaryLeakLog[]
+
+  @@index([trapId], name: "idx_canary_recipients_trap")
+  @@map("canary_recipients")
+}
+
+model CanaryLeakLog {
+  id                 BigInt          @id @default(autoincrement())
+  trapId             String          @map("trap_id") @db.Uuid
+  matchedRecipientId String          @map("matched_recipient_id") @db.Uuid
+  investigatorIp     String          @map("investigator_ip") @db.VarChar(45)
+  detectedBinary     String          @map("detected_binary") @db.VarChar(64)
+  confidenceScore    Decimal         @map("confidence_score") @db.Decimal(5, 2)
+  investigatedAt     DateTime        @default(now()) @map("investigated_at") @db.Timestamptz
+
+  trap               CanaryTrap      @relation(fields: [trapId], references: [id], onDelete: Cascade)
+  matchedRecipient   CanaryRecipient @relation(fields: [matchedRecipientId], references: [id], onDelete: Cascade)
+
+  @@map("canary_leak_logs")
+}
+
+model CliPipe {
+  id              String   @id @default(uuid()) @db.Uuid
+  pipeSlug        String   @unique @map("pipe_slug") @db.VarChar(32)
+  encryptedPayload Bytes   @map("encrypted_payload")
+  sizeBytes       Int      @map("size_bytes")
+  burnAfterRead   Boolean  @default(true) @map("burn_after_read")
+  downloadCount   Int      @default(0) @map("download_count")
+  maxDownloads    Int      @default(1) @map("max_downloads")
+  expiresAt       DateTime @map("expires_at") @db.Timestamptz
+  createdIp       String   @map("created_ip") @db.VarChar(45)
+  userAgent       String?  @map("user_agent") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([expiresAt], name: "idx_cli_pipes_sweep")
+  @@map("cli_pipes")
+}
+
+model TimelockVault {
+  id                 String   @id @default(uuid()) @db.Uuid
+  vaultSlug          String   @unique @map("vault_slug") @db.VarChar(32)
+  title              String   @db.VarChar(255)
+  targetReleaseTime  DateTime @map("target_release_time") @db.Timestamptz
+  drandTargetRound   BigInt   @map("drand_target_round")
+  drandChainHash     String   @map("drand_chain_hash") @db.VarChar(128)
+  encryptedCiphertext Bytes   @map("encrypted_ciphertext")
+  sizeBytes          Int      @map("size_bytes")
+  isUnlocked         Boolean  @default(false) @map("is_unlocked")
+  ownerUserId        String?  @map("owner_user_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser          User?    @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([targetReleaseTime], name: "idx_timelock_target_time")
+  @@map("timelock_vaults")
+}
+
+model VoiceMemo {
+  id               String    @id @default(uuid()) @db.Uuid
+  memoSlug         String    @unique @map("memo_slug") @db.VarChar(32)
+  durationSeconds  Int       @map("duration_seconds")
+  scramblerProfile String    @map("scrambler_profile") @db.VarChar(30)
+  encryptedAudioBlob Bytes   @map("encrypted_audio_blob")
+  isBurned         Boolean   @default(false) @map("is_burned")
+  playedAt         DateTime? @map("played_at") @db.Timestamptz
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz
+  ownerUserId      String?   @map("owner_user_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser        User?     @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
+  @@index([isBurned, expiresAt], name: "idx_voice_memos_sweep")
+  @@map("voice_memos")
+}
+
+model SanitizerTelemetry {
+  id                    BigInt        @id @default(autoincrement())
+  visitorId             String?       @map("visitor_id") @db.Uuid
+  entitiesRedactedCount Int           @map("entities_redacted_count")
+  apiKeysCount          Int           @default(0) @map("api_keys_count")
+  piiCount              Int           @default(0) @map("pii_count")
+  documentSizeKb        Int           @map("document_size_kb")
+  processedAt           DateTime      @default(now()) @map("processed_at") @db.Timestamptz
+
+  visitor               VisitorTrack? @relation(fields: [visitorId], references: [visitorId], onDelete: SetNull)
+
+  @@map("sanitizer_telemetry")
+}
+
+model BlindPoll {
+  id                 String          @id @default(uuid()) @db.Uuid
+  pollSlug           String          @unique @map("poll_slug") @db.VarChar(32)
+  title              String          @db.VarChar(255)
+  publicPaillierKey  String          @map("public_paillier_key") @db.Text
+  optionsJson        Json            @map("options_json")
+  totalEligibleVoters Int            @map("total_eligible_voters")
+  isClosed           Boolean         @default(false) @map("is_closed")
+  closedAt           DateTime?       @map("closed_at") @db.Timestamptz
+  zkpTallyHash       String?         @map("zkp_tally_hash") @db.VarChar(128)
+  ownerUserId        String          @map("owner_user_id") @db.Uuid
+  createdAt          DateTime        @default(now()) @map("created_at") @db.Timestamptz
+
+  ownerUser          User            @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  votes              BlindPollVote[]
+
+  @@map("blind_polls")
+}
+
+model BlindPollVote {
+  id                  String    @id @default(uuid()) @db.Uuid
+  pollId              String    @map("poll_id") @db.Uuid
+  encryptedVoteCipher String    @map("encrypted_vote_cipher") @db.Text
+  voterTokenHash      String    @unique @map("voter_token_hash") @db.VarChar(64)
+  submittedAt         DateTime  @default(now()) @map("submitted_at") @db.Timestamptz
+
+  poll                BlindPoll @relation(fields: [pollId], references: [id], onDelete: Cascade)
+
+  @@map("blind_poll_votes")
+}
+

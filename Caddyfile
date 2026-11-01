@@ -1,0 +1,41 @@
+{
+    admin off
+    auto_https off
+}
+
+# 1. Main Public Web App: kryphix.my.id
+http://kryphix.my.id, http://localhost:80, http://127.0.0.1:80 {
+    encode zstd gzip
+
+    # Proxy local MinIO encrypted storage blobs (public read-only)
+    handle /storage/* {
+        uri strip_prefix /storage
+        reverse_proxy minio:9000
+    }
+
+    # Proxy WebSocket & HTTP traffic to Next.js App
+    handle {
+        reverse_proxy app:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
+    }
+}
+
+# 2. Isolated Superadmin Console: nexus-console.kryphix.my.id
+http://nexus-console.kryphix.my.id, http://admin.localhost:80 {
+    encode zstd gzip
+
+    handle {
+        reverse_proxy app:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Nexus-Console "true"
+        }
+    }
+}
+
